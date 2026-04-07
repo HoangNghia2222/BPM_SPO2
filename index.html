@@ -47,8 +47,8 @@
         .metric-container {
             background: #f8fafc;
             border-radius: 20px;
-            padding: 20px;
-            margin-bottom: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
             gap: 16px;
@@ -61,7 +61,7 @@
         }
 
         .value-display {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 800;
             line-height: 1;
             color: #1e293b;
@@ -76,8 +76,8 @@
 
         /* Thanh tiến trình SpO2 */
         .progress-ring {
-            width: 60px;
-            height: 60px;
+            width: 54px;
+            height: 54px;
             border-radius: 50%;
             background: conic-gradient(#3b82f6 var(--p), #e2e8f0 0);
             display: flex;
@@ -89,8 +89,8 @@
         .progress-ring::before {
             content: "";
             position: absolute;
-            width: 48px;
-            height: 48px;
+            width: 42px;
+            height: 42px;
             background: #f8fafc;
             border-radius: 50%;
         }
@@ -108,21 +108,33 @@
             border-radius: 100px;
             text-transform: uppercase;
         }
+
+        /* Giao diện hiển thị Loa */
+        .speaker-status {
+            font-weight: 800;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        .state-inactive { color: #cbd5e1; } /* Xám khi không hoạt động */
+        .state-off-active { color: #ef4444; text-shadow: 0 0 8px rgba(239, 68, 68, 0.3); } /* Đỏ khi OFF */
+        .state-on-active { color: #22c55e; text-shadow: 0 0 8px rgba(34, 197, 94, 0.3); } /* Xanh khi ON */
+
     </style>
 </head>
 <body>
 
     <div class="health-card">
         <!-- Header -->
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex justify-between items-center mb-5">
             <h2 class="text-lg font-bold text-slate-800">Theo dõi sức khỏe</h2>
             <div class="status-tag bg-green-100 text-green-600">Trực tuyến</div>
         </div>
 
         <!-- BPM Section -->
         <div class="metric-container">
-            <div class="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center">
-                <i class="fa-solid fa-heart-pulse heart-icon text-2xl"></i>
+            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
+                <i class="fa-solid fa-heart-pulse heart-icon text-xl"></i>
             </div>
             <div class="flex-1">
                 <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nhịp tim (BPM)</div>
@@ -135,12 +147,26 @@
         <!-- SpO2 Section -->
         <div class="metric-container">
             <div id="spo2-ring" class="progress-ring" style="--p: 0%;">
-                <i class="fa-solid fa-droplet text-xl"></i>
+                <i class="fa-solid fa-droplet text-lg"></i>
             </div>
             <div class="flex-1">
                 <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nồng độ Oxy (SpO2)</div>
                 <div class="value-display">
                     <span id="spo2-val">--</span><span class="unit">%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Speaker Status Section (Thêm mới) -->
+        <div class="metric-container">
+            <div class="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
+                <i id="speaker-icon" class="fa-solid fa-volume-high text-indigo-400 text-lg"></i>
+            </div>
+            <div class="flex-1">
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Trạng thái Loa</div>
+                <div class="flex gap-4 mt-1">
+                    <span id="label-off" class="speaker-status state-off-active">OFF</span>
+                    <span id="label-on" class="speaker-status state-inactive">ON</span>
                 </div>
             </div>
         </div>
@@ -157,18 +183,23 @@
         const eraWidget = new EraWidget();
         let configBPM = null;
         let configSpO2 = null;
+        let configSpeaker = null; // Cấu hình cho Loa
 
         const bpmEl = document.getElementById('bpm-val');
         const spo2El = document.getElementById('spo2-val');
         const spo2Ring = document.getElementById('spo2-ring');
+        
+        const labelOff = document.getElementById('label-off');
+        const labelOn = document.getElementById('label-on');
+        const speakerIcon = document.getElementById('speaker-icon');
 
         eraWidget.init({
             needRealtimeConfigs: true,
-            maxRealtimeConfigsCount: 2,
+            maxRealtimeConfigsCount: 3, // Tăng lên 3 để nhận thêm pin Loa
             onConfiguration: (configuration) => {
-                // Config 0 cho BPM, Config 1 cho SpO2
                 configBPM = configuration.realtime_configs[0];
                 configSpO2 = configuration.realtime_configs[1];
+                configSpeaker = configuration.realtime_configs[2]; // Pin hiển thị trạng thái loa
             },
             onValues: (values) => {
                 // Cập nhật nhịp tim
@@ -181,8 +212,24 @@
                 if (configSpO2 && values[configSpO2.id]) {
                     const val = values[configSpO2.id].value;
                     spo2El.innerText = Math.round(val);
-                    // Cập nhật vòng tròn tiến trình
                     spo2Ring.style.setProperty('--p', val + '%');
+                }
+
+                // Cập nhật hiển thị Loa (Hiển thị thuần túy)
+                if (configSpeaker && values[configSpeaker.id]) {
+                    const isSpeakerOn = (values[configSpeaker.id].value == 1);
+                    
+                    if (isSpeakerOn) {
+                        // Trạng thái ON sáng lên
+                        labelOn.className = "speaker-status state-on-active";
+                        labelOff.className = "speaker-status state-inactive";
+                        speakerIcon.className = "fa-solid fa-volume-high text-green-500 text-lg";
+                    } else {
+                        // Trạng thái OFF sáng lên
+                        labelOn.className = "speaker-status state-inactive";
+                        labelOff.className = "speaker-status state-off-active";
+                        speakerIcon.className = "fa-solid fa-volume-xmark text-slate-400 text-lg";
+                    }
                 }
             }
         });
