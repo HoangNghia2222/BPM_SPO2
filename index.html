@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Monitor - ERa IoT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+        body {
+            background: transparent;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .health-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 24px;
+            width: 100%;
+            max-width: 360px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        /* Hiệu ứng nhịp tim đập */
+        @keyframes heartbeat {
+            0% { transform: scale(1); }
+            15% { transform: scale(1.3); }
+            30% { transform: scale(1); }
+            45% { transform: scale(1.15); }
+            60% { transform: scale(1); }
+        }
+
+        .heart-icon {
+            color: #ef4444;
+            animation: heartbeat 1.2s infinite ease-in-out;
+        }
+
+        .metric-container {
+            background: #f8fafc;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .metric-container:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .value-display {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1;
+            color: #1e293b;
+        }
+
+        .unit {
+            font-size: 1rem;
+            color: #64748b;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        /* Thanh tiến trình SpO2 */
+        .progress-ring {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: conic-gradient(#3b82f6 var(--p), #e2e8f0 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .progress-ring::before {
+            content: "";
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            background: #f8fafc;
+            border-radius: 50%;
+        }
+
+        .progress-ring i {
+            position: relative;
+            z-index: 1;
+            color: #3b82f6;
+        }
+
+        .status-tag {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 100px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="health-card">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-bold text-slate-800">Theo dõi sức khỏe</h2>
+            <div class="status-tag bg-green-100 text-green-600">Trực tuyến</div>
+        </div>
+
+        <!-- BPM Section -->
+        <div class="metric-container">
+            <div class="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center">
+                <i class="fa-solid fa-heart-pulse heart-icon text-2xl"></i>
+            </div>
+            <div class="flex-1">
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nhịp tim (BPM)</div>
+                <div class="value-display">
+                    <span id="bpm-val">--</span><span class="unit">bpm</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- SpO2 Section -->
+        <div class="metric-container">
+            <div id="spo2-ring" class="progress-ring" style="--p: 0%;">
+                <i class="fa-solid fa-droplet text-xl"></i>
+            </div>
+            <div class="flex-1">
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nồng độ Oxy (SpO2)</div>
+                <div class="value-display">
+                    <span id="spo2-val">--</span><span class="unit">%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-4 pt-4 border-t border-slate-100 flex justify-center">
+            <span class="text-[9px] text-slate-300 font-bold uppercase tracking-[3px]">ERa IoT Health System</span>
+        </div>
+    </div>
+
+    <!-- E-Ra Widget Library -->
+    <script src="https://www.unpkg.com/@eohjsc/era-widget@1.1.3/src/index.js"></script>
+    <script>
+        const eraWidget = new EraWidget();
+        let configBPM = null;
+        let configSpO2 = null;
+
+        const bpmEl = document.getElementById('bpm-val');
+        const spo2El = document.getElementById('spo2-val');
+        const spo2Ring = document.getElementById('spo2-ring');
+
+        eraWidget.init({
+            needRealtimeConfigs: true,
+            maxRealtimeConfigsCount: 2,
+            onConfiguration: (configuration) => {
+                // Config 0 cho BPM, Config 1 cho SpO2
+                configBPM = configuration.realtime_configs[0];
+                configSpO2 = configuration.realtime_configs[1];
+            },
+            onValues: (values) => {
+                // Cập nhật nhịp tim
+                if (configBPM && values[configBPM.id]) {
+                    const val = values[configBPM.id].value;
+                    bpmEl.innerText = Math.round(val);
+                }
+
+                // Cập nhật SpO2
+                if (configSpO2 && values[configSpO2.id]) {
+                    const val = values[configSpO2.id].value;
+                    spo2El.innerText = Math.round(val);
+                    // Cập nhật vòng tròn tiến trình
+                    spo2Ring.style.setProperty('--p', val + '%');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
